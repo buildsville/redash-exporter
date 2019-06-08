@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -49,7 +48,7 @@ type redashStatus struct {
 		Metrics [][]interface{} `json:"metrics"`
 	} `json:"database_metrics"`
 	Manager struct {
-		OutdatedQueriesCount string `json:"outdated_queries_count"`
+		OutdatedQueriesCount float64 `json:"outdated_queries_count,string"`
 		Queues               struct {
 			Celery struct {
 				Size float64 `json:"size"`
@@ -234,12 +233,11 @@ func main() {
 				}
 				metrics[key] = val
 			}
-			oqc, _ := strconv.Atoi(status.Manager.OutdatedQueriesCount)
 			info.With(infoLabel).Set(float64(1))
 			dashboardsCount.With(label).Set(status.DashboardsCount)
 			queryResultsSize.With(label).Set(metrics["Query Results Size"])
 			dbSize.With(label).Set(metrics["Redash DB Size"])
-			outdatedQueriesCount.With(label).Set(float64(oqc))
+			outdatedQueriesCount.With(label).Set(float64(status.Manager.OutdatedQueriesCount))
 			queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
 			queuesQueries.With(label).Set(status.Manager.Queues.Queries.Size)
 			queuesScheduledQueries.With(label).Set(status.Manager.Queues.ScheduledQueries.Size)
