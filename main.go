@@ -50,15 +50,21 @@ type redashStatus struct {
 	Manager struct {
 		OutdatedQueriesCount float64 `json:"outdated_queries_count,string"`
 		Queues               struct {
-			Celery struct {
+			Default struct {
 				Size float64 `json:"size"`
-			} `json:"celery"`
+			} `json:"default"`
+			Periodic struct {
+				Size float64 `json:"size"`
+			} `json:"periodic"`
 			Queries struct {
 				Size float64 `json:"size"`
 			} `json:"queries"`
 			ScheduledQueries struct {
 				Size float64 `json:"size"`
 			} `json:"scheduled_queries"`
+			Schemas struct {
+				Size float64 `json:"size"`
+			} `json:"schemas"`
 		} `json:"queues"`
 	} `json:"manager"`
 	QueriesCount            float64 `json:"queries_count"`
@@ -116,10 +122,18 @@ var (
 		labels,
 	)
 
-	queuesCelery = promauto.NewGaugeVec(
+	queuesDefault = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "redash_queues_celery",
-			Help: "Number of celery queues.",
+			Name: "redash_queues_default",
+			Help: "Number of default queues.",
+		},
+		labels,
+	)
+
+	queuesPeriodic = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_periodic",
+			Help: "Number of periodic queues.",
 		},
 		labels,
 	)
@@ -136,6 +150,14 @@ var (
 		prometheus.GaugeOpts{
 			Name: "redash_queues_scheduled_queries",
 			Help: "Number of scheduled query queues.",
+		},
+		labels,
+	)
+
+	queuesSchemas = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_schemas",
+			Help: "Number of schemas queues.",
 		},
 		labels,
 	)
@@ -238,9 +260,11 @@ func main() {
 			queryResultsSize.With(label).Set(metrics["Query Results Size"])
 			dbSize.With(label).Set(metrics["Redash DB Size"])
 			outdatedQueriesCount.With(label).Set(float64(status.Manager.OutdatedQueriesCount))
-			queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
+			queuesDefault.With(label).Set(status.Manager.Queues.Default.Size)
+			queuesPeriodic.With(label).Set(status.Manager.Queues.Periodic.Size)
 			queuesQueries.With(label).Set(status.Manager.Queues.Queries.Size)
 			queuesScheduledQueries.With(label).Set(status.Manager.Queues.ScheduledQueries.Size)
+			queuesSchemas.With(label).Set(status.Manager.Queues.Schemas.Size)
 			queriesCount.With(label).Set(status.QueriesCount)
 			queryResultsCount.With(label).Set(status.QueryResultsCount)
 			redisUsedMemory.With(label).Set(status.RedisUsedMemory)
