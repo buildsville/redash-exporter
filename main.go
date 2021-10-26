@@ -2,12 +2,13 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/namsral/flag"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -33,11 +34,11 @@ const rootDoc = `<html>
 `
 
 var (
-	addr            = flag.String("listen-address", defaultAddr, "The address to listen HTTP requests.")
-	metricsInterval = flag.Int("metricsInterval", defaultMetricsInterval, "Interval to scrape status.")
-	redashScheme    = flag.String("redashScheme", defaultReashScheme, "target Redash scheme.")
-	redashHost      = flag.String("redashHost", defaultRedashHost, "target Redash host.")
-	redashPort      = flag.String("redashPort", defaultRedashPort, "target Redash port.")
+	addr            = flag.String("listen_address", defaultAddr, "The address to listen HTTP requests.")
+	metricsInterval = flag.Int("metrics_interval", defaultMetricsInterval, "Interval to scrape status.")
+	redashScheme    = flag.String("redash_scheme", defaultReashScheme, "target Redash scheme.")
+	redashHost      = flag.String("redash_host", defaultRedashHost, "target Redash host.")
+	redashPort      = flag.String("redash_port", defaultRedashPort, "target Redash port.")
 )
 
 var apiKey = os.Getenv("REDASH_API_KEY")
