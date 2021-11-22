@@ -26,6 +26,8 @@ Set your redash api-key to the environment variable `REDASH_API_KEY`
     target Redash port. (default "5000")
 -redashScheme string
     target Redash scheme. (default "http")
+-redashVersion int
+    redash version. (default 8)
 ```
 
 # docker image  

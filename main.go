@@ -21,6 +21,7 @@ const (
 	defaultReashScheme     = "http"
 	defaultRedashHost      = "localhost"
 	defaultRedashPort      = "5000"
+	defaultRedashVersion   = 8
 )
 
 const rootDoc = `<html>
@@ -38,6 +39,7 @@ var (
 	redashScheme    = flag.String("redashScheme", defaultReashScheme, "target Redash scheme.")
 	redashHost      = flag.String("redashHost", defaultRedashHost, "target Redash host.")
 	redashPort      = flag.String("redashPort", defaultRedashPort, "target Redash port.")
+	redashVersion   = flag.Int("redashVersion", defaultRedashVersion, "redash version.")
 )
 
 var apiKey = os.Getenv("REDASH_API_KEY")
@@ -59,6 +61,18 @@ type redashStatus struct {
 			ScheduledQueries struct {
 				Size float64 `json:"size"`
 			} `json:"scheduled_queries"`
+			Default struct {
+				Size float64 `json:"size"`
+			} `json:"default"`
+			Schemas struct {
+				Size float64 `json:"size"`
+			} `json:"schemas"`
+			Periodic struct {
+				Size float64 `json:"size"`
+			} `json:"periodic"`
+			Emails struct {
+				Size float64 `json:"size"`
+			} `json:"emails"`
 		} `json:"queues"`
 	} `json:"manager"`
 	QueriesCount            float64 `json:"queries_count"`
@@ -119,7 +133,7 @@ var (
 	queuesCelery = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "redash_queues_celery",
-			Help: "Number of celery queues.",
+			Help: "Number of celery queues. (v8 and before)",
 		},
 		labels,
 	)
@@ -136,6 +150,38 @@ var (
 		prometheus.GaugeOpts{
 			Name: "redash_queues_scheduled_queries",
 			Help: "Number of scheduled query queues.",
+		},
+		labels,
+	)
+
+	queuesDefault = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_default",
+			Help: "Number of default queues. (v10)",
+		},
+		labels,
+	)
+
+	queuesSchemas = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_schemas",
+			Help: "Number of schemas queues. (v10)",
+		},
+		labels,
+	)
+
+	queuesPeriodic = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_periodic",
+			Help: "Number of periodic queues. (v10)",
+		},
+		labels,
+	)
+
+	queuesEmails = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues_emails",
+			Help: "Number of emails queues. (v10)",
 		},
 		labels,
 	)
@@ -238,9 +284,17 @@ func main() {
 			queryResultsSize.With(label).Set(metrics["Query Results Size"])
 			dbSize.With(label).Set(metrics["Redash DB Size"])
 			outdatedQueriesCount.With(label).Set(float64(status.Manager.OutdatedQueriesCount))
-			queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
+			if *redashVersion <= 8 {
+				queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
+			}
 			queuesQueries.With(label).Set(status.Manager.Queues.Queries.Size)
 			queuesScheduledQueries.With(label).Set(status.Manager.Queues.ScheduledQueries.Size)
+			if *redashVersion > 8 {
+				queuesDefault.With(label).Set(status.Manager.Queues.Default.Size)
+				queuesSchemas.With(label).Set(status.Manager.Queues.Schemas.Size)
+				queuesPeriodic.With(label).Set(status.Manager.Queues.Periodic.Size)
+				queuesEmails.With(label).Set(status.Manager.Queues.Emails.Size)
+			}
 			queriesCount.With(label).Set(status.QueriesCount)
 			queryResultsCount.With(label).Set(status.QueryResultsCount)
 			redisUsedMemory.With(label).Set(status.RedisUsedMemory)
