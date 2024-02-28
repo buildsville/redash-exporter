@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -234,7 +234,7 @@ func getRedashStatus() (redashStatus, error) {
 	if e != nil {
 		return redashStatus{}, fmt.Errorf("httpGet error : %v", e)
 	}
-	body, e := ioutil.ReadAll(resp.Body)
+	body, e := io.ReadAll(resp.Body)
 	if e != nil {
 		return redashStatus{}, fmt.Errorf("io read error : %v", e)
 	}
