@@ -130,6 +130,14 @@ var (
 		labels,
 	)
 
+	queues = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "redash_queues",
+			Help: "Number of queues by queue label.",
+		},
+		append([]string{"queue"}, labels...),
+	)
+
 	queuesCelery = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "redash_queues_celery",
@@ -250,6 +258,16 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rootDoc))
 }
 
+func collectQueuesMetrics(metricVec *prometheus.GaugeVec, label prometheus.Labels, queueName string, value float64) {
+	metricVec.With(label).Set(value)
+	labelWithQueue := prometheus.Labels{"queue": queueName}
+	for k, v := range label {
+		labelWithQueue[k] = v
+	}
+	queues.With(labelWithQueue).Set(value)
+
+}
+
 func main() {
 	flag.Parse()
 	log.Info("start Redash exporter.")
@@ -285,15 +303,15 @@ func main() {
 			dbSize.With(label).Set(metrics["Redash DB Size"])
 			outdatedQueriesCount.With(label).Set(float64(status.Manager.OutdatedQueriesCount))
 			if *redashVersion <= 8 {
-				queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
+				collectQueuesMetrics(queuesCelery, label, "celery", status.Manager.Queues.Celery.Size)
 			}
-			queuesQueries.With(label).Set(status.Manager.Queues.Queries.Size)
-			queuesScheduledQueries.With(label).Set(status.Manager.Queues.ScheduledQueries.Size)
+			collectQueuesMetrics(queuesQueries, label, "queries", status.Manager.Queues.Queries.Size)
+			collectQueuesMetrics(queuesScheduledQueries, label, "scheduled_queries", status.Manager.Queues.ScheduledQueries.Size)
 			if *redashVersion > 8 {
-				queuesDefault.With(label).Set(status.Manager.Queues.Default.Size)
-				queuesSchemas.With(label).Set(status.Manager.Queues.Schemas.Size)
-				queuesPeriodic.With(label).Set(status.Manager.Queues.Periodic.Size)
-				queuesEmails.With(label).Set(status.Manager.Queues.Emails.Size)
+				collectQueuesMetrics(queuesDefault, label, "default", status.Manager.Queues.Default.Size)
+				collectQueuesMetrics(queuesSchemas, label, "schemas", status.Manager.Queues.Schemas.Size)
+				collectQueuesMetrics(queuesPeriodic, label, "periodic", status.Manager.Queues.Periodic.Size)
+				collectQueuesMetrics(queuesEmails, label, "emails", status.Manager.Queues.Emails.Size)
 			}
 			queriesCount.With(label).Set(status.QueriesCount)
 			queryResultsCount.With(label).Set(status.QueryResultsCount)
