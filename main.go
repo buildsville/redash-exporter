@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -39,7 +39,7 @@ var (
 	redashScheme    = flag.String("redashScheme", defaultReashScheme, "target Redash scheme.")
 	redashHost      = flag.String("redashHost", defaultRedashHost, "target Redash host.")
 	redashPort      = flag.String("redashPort", defaultRedashPort, "target Redash port.")
-	redashVersion   = flag.Int("redashVersion", defaultRedashVersion, "redash version.")
+	_               = flag.Int("redashVersion", defaultRedashVersion, "redash version (deprecated).")
 )
 
 var apiKey = os.Getenv("REDASH_API_KEY")
@@ -51,28 +51,8 @@ type redashStatus struct {
 	} `json:"database_metrics"`
 	Manager struct {
 		OutdatedQueriesCount float64 `json:"outdated_queries_count,string"`
-		Queues               struct {
-			Celery struct {
-				Size float64 `json:"size"`
-			} `json:"celery"`
-			Queries struct {
-				Size float64 `json:"size"`
-			} `json:"queries"`
-			ScheduledQueries struct {
-				Size float64 `json:"size"`
-			} `json:"scheduled_queries"`
-			Default struct {
-				Size float64 `json:"size"`
-			} `json:"default"`
-			Schemas struct {
-				Size float64 `json:"size"`
-			} `json:"schemas"`
-			Periodic struct {
-				Size float64 `json:"size"`
-			} `json:"periodic"`
-			Emails struct {
-				Size float64 `json:"size"`
-			} `json:"emails"`
+		Queues               map[string]struct {
+			Size float64 `json:"size"`
 		} `json:"queues"`
 	} `json:"manager"`
 	QueriesCount            float64 `json:"queries_count"`
@@ -130,61 +110,65 @@ var (
 		labels,
 	)
 
-	queuesCelery = promauto.NewGaugeVec(
+	queues = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "redash_queues_celery",
-			Help: "Number of celery queues. (v8 and before)",
+			Name: "redash_queues",
+			Help: "Number of queues by queue label.",
 		},
-		labels,
+		append([]string{"queue"}, labels...),
 	)
 
-	queuesQueries = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_queries",
-			Help: "Number of query queues.",
-		},
-		labels,
-	)
-
-	queuesScheduledQueries = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_scheduled_queries",
-			Help: "Number of scheduled query queues.",
-		},
-		labels,
-	)
-
-	queuesDefault = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_default",
-			Help: "Number of default queues. (v10)",
-		},
-		labels,
-	)
-
-	queuesSchemas = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_schemas",
-			Help: "Number of schemas queues. (v10)",
-		},
-		labels,
-	)
-
-	queuesPeriodic = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_periodic",
-			Help: "Number of periodic queues. (v10)",
-		},
-		labels,
-	)
-
-	queuesEmails = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "redash_queues_emails",
-			Help: "Number of emails queues. (v10)",
-		},
-		labels,
-	)
+	queuesMap = map[string]*prometheus.GaugeVec{
+		"celery": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_celery",
+				Help: "Number of celery queues. (v8 and before)",
+			},
+			labels,
+		),
+		"queries": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_queries",
+				Help: "Number of query queues.",
+			},
+			labels,
+		),
+		"scheduled_queries": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_scheduled_queries",
+				Help: "Number of scheduled query queues.",
+			},
+			labels,
+		),
+		"default": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_default",
+				Help: "Number of default queues. (v10)",
+			},
+			labels,
+		),
+		"schemas": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_schemas",
+				Help: "Number of schemas queues. (v10)",
+			},
+			labels,
+		),
+		"periodic": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_periodic",
+				Help: "Number of periodic queues. (v10)",
+			},
+			labels,
+		),
+		"emails": promauto.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "redash_queues_emails",
+				Help: "Number of emails queues. (v10)",
+			},
+			labels,
+		),
+	}
 
 	queriesCount = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -234,7 +218,7 @@ func getRedashStatus() (redashStatus, error) {
 	if e != nil {
 		return redashStatus{}, fmt.Errorf("httpGet error : %v", e)
 	}
-	body, e := ioutil.ReadAll(resp.Body)
+	body, e := io.ReadAll(resp.Body)
 	if e != nil {
 		return redashStatus{}, fmt.Errorf("io read error : %v", e)
 	}
@@ -284,16 +268,16 @@ func main() {
 			queryResultsSize.With(label).Set(metrics["Query Results Size"])
 			dbSize.With(label).Set(metrics["Redash DB Size"])
 			outdatedQueriesCount.With(label).Set(float64(status.Manager.OutdatedQueriesCount))
-			if *redashVersion <= 8 {
-				queuesCelery.With(label).Set(status.Manager.Queues.Celery.Size)
-			}
-			queuesQueries.With(label).Set(status.Manager.Queues.Queries.Size)
-			queuesScheduledQueries.With(label).Set(status.Manager.Queues.ScheduledQueries.Size)
-			if *redashVersion > 8 {
-				queuesDefault.With(label).Set(status.Manager.Queues.Default.Size)
-				queuesSchemas.With(label).Set(status.Manager.Queues.Schemas.Size)
-				queuesPeriodic.With(label).Set(status.Manager.Queues.Periodic.Size)
-				queuesEmails.With(label).Set(status.Manager.Queues.Emails.Size)
+			for name, stat := range status.Manager.Queues {
+				if q, ok := queuesMap[name]; ok {
+					q.With(label).Set(stat.Size)
+				}
+
+				labelWithQueue := prometheus.Labels{"queue": name}
+				for k, v := range label {
+					labelWithQueue[k] = v
+				}
+				queues.With(labelWithQueue).Set(stat.Size)
 			}
 			queriesCount.With(label).Set(status.QueriesCount)
 			queryResultsCount.With(label).Set(status.QueryResultsCount)
